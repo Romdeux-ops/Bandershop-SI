@@ -1,0 +1,116 @@
+/* Fond avec un dégradé dynamique */
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #FF8008, #FFC837);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+}
+
+/* Conteneur du formulaire */
+.ajouter-produit-container {
+    max-width: 600px;
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    animation: fadeIn 1s ease-in-out;
+}
+
+/* Animation d'apparition */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Titre stylisé */
+.ajouter-produit-container h2 {
+    font-size: 28px;
+    font-weight: bold;
+    color: #FF8008;
+    margin-bottom: 20px;
+}
+
+/* Champs de formulaire */
+.ajouter-produit-container input,
+.ajouter-produit-container textarea,
+.ajouter-produit-container select {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: all 0.3s ease-in-out;
+}
+
+/* Effet au focus */
+.ajouter-produit-container input:focus,
+.ajouter-produit-container textarea:focus,
+.ajouter-produit-container select:focus {
+    border-color: #FF8008;
+    box-shadow: 0px 0px 10px rgba(255, 128, 8, 0.5);
+    outline: none;
+}
+
+/* Effet spécifique pour le champ fichier */
+.ajouter-produit-container input[type="file"] {
+    border: none;
+    padding: 5px;
+}
+
+/* Label stylisé */
+.ajouter-produit-container label {
+    font-weight: bold;
+    text-align: left;
+    display: block;
+    margin-top: 15px;
+}
+
+/* Bouton animé */
+.ajouter-produit-container button {
+    margin-top: 20px;
+    background: linear-gradient(90deg, #FF8008, #FF4500);
+    color: white;
+    border: none;
+    padding: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.4s;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Effet au survol */
+.ajouter-produit-container button:hover {
+    background: linear-gradient(90deg, #FF4500, #FF8008);
+    transform: scale(1.05);
+}
+
+/* Effet pulsation */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(255, 128, 8, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(255, 128, 8, 0.6);
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(255, 128, 8, 0.3);
+    }
+}
+
+.ajouter-produit-container button:hover {
+    animation: pulse 1s infinite;
+}

@@ -1,0 +1,714 @@
+<?php
+session_start();
+
+// Vérifier si l'utilisateur est connecté
+if (!isset($_SESSION['user_id'])) {
+    header("Location: connexion.php");
+    exit();
+}
+
+// Vérifier si le panier est vide
+if (!isset($_SESSION['panier']) || empty($_SESSION['panier'])) {
+    header("Location: panier.php");
+    exit();
+}
+
+// Connexion à la base de données
+try {
+    $pdo = new PDO("mysql:host=localhost;dbname=e_boutique", "root", "root");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Erreur de connexion : " . $e->getMessage());
+}
+
+// Récupérer les catégories pour le menu de navigation
+$stmt = $pdo->query("SELECT * FROM categories");
+$categories = $stmt->fetchAll();
+
+// Récupérer les informations de l'utilisateur
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch();
+
+// Récupérer les articles du panier
+$panier_total = 0;
+$produits_panier = [];
+
+foreach ($_SESSION['panier'] as $id_produit => $quantite) {
+    $stmt = $pdo->prepare("SELECT p.*, c.nom AS categorie_nom FROM products p
+                           LEFT JOIN categories c ON p.categorie_id = c.id
+                           WHERE p.id = ?");
+    $stmt->execute([$id_produit]);
+    $produit = $stmt->fetch();
+
+    if ($produit) {
+        $produit['quantite'] = $quantite;
+        $produit['sous_total'] = $produit['prix'] * $quantite;
+        $panier_total += $produit['sous_total'];
+        $produits_panier[] = $produit;
+    }
+}
+
+// Traitement de la commande
+$confirmation_message = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finaliser_commande'])) {
+    // Récupérer les données du formulaire
+    $adresse_livraison = $_POST['adresse'] . ', ' . $_POST['ville'] . ', ' . $_POST['code_postal'] . ', ' . $_POST['pays'];
+    $methode_paiement = $_POST['methode_paiement'];
+
+    // Simuler l'enregistrement de la commande (dans une vraie application, vous enregistreriez les détails dans la base de données)
+    // Créer un numéro de commande fictif
+    $numero_commande = 'CMD-' . time() . '-' . $_SESSION['user_id'];
+
+    // Vider le panier
+    $_SESSION['panier'] = [];
+
+    // Afficher le message de confirmation
+    $confirmation_message = "Votre commande #$numero_commande a été validée avec succès ! Un e-mail de confirmation vous a été envoyé.";
+}
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finaliser votre commande - BANDER-SHOP</title>
+    <style>
+        :root {
+            --primary-color: #FF8C00;
+            --secondary-color: #FFA500;
+            --accent-color: #FFD700;
+            --text-color: #333;
+            --light-background: #FFF8E7;
+            --border-color: #FFEFD5;
+            --success-color: #4CAF50;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #fff;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo a {
+            text-decoration: none;
+            color: var(--primary-color);
+            font-weight: bold;
+            font-size: 24px;
+        }
+
+        .search-container {
+            flex-grow: 1;
+            max-width: 500px;
+            margin: 0 20px;
+        }
+
+        .search-bar {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-bar button {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: var(--primary-color);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-actions a {
+            text-decoration: none;
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        .sell-button {
+            background-color: var(--primary-color);
+            color: white !important;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        /* Navigation */
+        .category-nav {
+            background-color: white;
+            border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .category-nav::-webkit-scrollbar {
+            display: none;
+        }
+
+        .category-nav ul {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            list-style: none;
+        }
+
+        .category-nav li {
+            margin-right: 20px;
+        }
+
+        .category-nav a {
+            display: inline-block;
+            text-decoration: none;
+            color: var(--text-color);
+            padding: 12px 0;
+            font-size: 14px;
+            position: relative;
+        }
+
+        /* Main content */
+        main {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            margin-bottom: 30px;
+            color: var(--primary-color);
+            text-align: center;
+        }
+
+        /* Checkout styles */
+        .checkout-container {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 992px) {
+            .checkout-container {
+                flex-direction: column;
+            }
+        }
+
+        /* Order summary */
+        .order-summary {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .summary-box {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .product-list {
+            margin-bottom: 15px;
+        }
+
+        .product-item {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .product-item:last-child {
+            border-bottom: none;
+        }
+
+        .product-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 3px;
+        }
+
+        .product-details {
+            font-size: 12px;
+            color: #777;
+        }
+
+        .product-price {
+            text-align: right;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .summary-totals {
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .total-label {
+            font-size: 14px;
+            color: #777;
+        }
+
+        .total-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .grand-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-top: 10px;
+        }
+
+        /* Checkout form */
+        .checkout-form {
+            flex: 2;
+            min-width: 300px;
+        }
+
+        .form-section {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* Payment methods */
+        .payment-methods {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .payment-method {
+            display: none;
+        }
+
+        .payment-method + label {
+            flex: 1;
+            min-width: 120px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .payment-method:checked + label {
+            border-color: var(--primary-color);
+            background-color: var(--light-background);
+            font-weight: bold;
+        }
+
+        .payment-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        /* Submit button */
+        .submit-button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .submit-button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        /* Success message */
+        .success-message {
+            background-color: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Footer */
+        footer {
+            background-color: var(--light-background);
+            border-top: 1px solid var(--border-color);
+            padding: 40px 0;
+            margin-top: 40px;
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+        }
+
+        .footer-column h4 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+
+        .footer-column ul {
+            list-style: none;
+        }
+
+        .footer-column li {
+            margin-bottom: 8px;
+        }
+
+        .footer-column a {
+            text-decoration: none;
+            color: #777;
+            font-size: 14px;
+        }
+
+        .copyright {
+            max-width: 1200px;
+            margin: 20px auto 0;
+            padding: 20px 20px 0;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: #777;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-container">
+        <div class="logo">
+            <a href="index.php">BANDER-SHOP</a>
+        </div>
+
+        <div class="search-container">
+            <form class="search-bar" action="index.php" method="get">
+                <input type="text" placeholder="Rechercher des articles..." name="search">
+                <button type="submit">🔍</button>
+            </form>
+        </div>
+
+        <div class="header-actions">
+            <a href="compte.php"><?= htmlspecialchars($_SESSION['user_nom']); ?></a>
+            <a href="messages.php">Messages</a>
+            <a href="mes_articles.php">Mes Articles</a>
+            <a href="logout.php">Déconnexion</a>
+        </div>
+    </div>
+
+    <nav class="category-nav">
+        <ul>
+            <?php foreach ($categories as $category): ?>
+                <li>
+                    <a href="index.php?categorie_id=<?= $category['id'] ?>">
+                        <?= htmlspecialchars($category['nom']) ?>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </nav>
+</header>
+
+<main>
+    <h1 class="page-title">Finaliser votre commande</h1>
+
+    <?php if (!empty($confirmation_message)): ?>
+        <div class="success-message">
+            <h2>Merci pour votre commande !</h2>
+            <p><?= htmlspecialchars($confirmation_message) ?></p>
+            <p>Vous allez bientôt recevoir un email de confirmation.</p>
+            <a href="index.php" style="display: inline-block; margin-top: 20px; color: var(--primary-color);">Retourner à la boutique</a>
+        </div>
+    <?php else: ?>
+        <div class="checkout-container">
+            <!-- Formulaire de paiement -->
+            <div class="checkout-form">
+                <form method="post" action="checkout.php">
+                    <!-- Adresse de livraison -->
+                    <div class="form-section">
+                        <h2 class="section-title">Adresse de livraison</h2>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="prenom">Prénom</label>
+                                <input type="text" id="prenom" name="prenom" class="form-control" value="<?= htmlspecialchars($user['prenom']) ?>" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="nom">Nom</label>
+                                <input type="text" id="nom" name="nom" class="form-control" value="<?= htmlspecialchars($user['nom']) ?>" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="adresse">Adresse</label>
+                            <input type="text" id="adresse" name="adresse" class="form-control" value="<?= htmlspecialchars($user['adresse']) ?>" required>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="ville">Ville</label>
+                                <input type="text" id="ville" name="ville" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="code_postal">Code postal</label>
+                                <input type="text" id="code_postal" name="code_postal" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pays">Pays</label>
+                            <select id="pays" name="pays" class="form-control" required>
+                                <option value="France">France</option>
+                                <option value="Belgique">Belgique</option>
+                                <option value="Suisse">Suisse</option>
+                                <option value="Canada">Canada</option>
+                                <option value="Luxembourg">Luxembourg</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="telephone">Téléphone</label>
+                            <input type="tel" id="telephone" name="telephone" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <!-- Mode de paiement -->
+                    <div class="form-section">
+                        <h2 class="section-title">Mode de paiement</h2>
+
+                        <div class="payment-methods">
+                            <input type="radio" id="carte_credit" name="methode_paiement" value="carte_credit" class="payment-method" checked>
+                            <label for="carte_credit">
+                                <span class="payment-icon">💳</span>
+                                Carte de crédit
+                            </label>
+
+                            <input type="radio" id="paypal" name="methode_paiement" value="paypal" class="payment-method">
+                            <label for="paypal">
+                                <span class="payment-icon">🅿️</span>
+                                PayPal
+                            </label>
+
+                            <input type="radio" id="virement" name="methode_paiement" value="virement" class="payment-method">
+                            <label for="virement">
+                                <span class="payment-icon">🏦</span>
+                                Virement bancaire
+                            </label>
+                        </div>
+
+                        <div id="carte_credit_details">
+                            <div class="form-group">
+                                <label for="numero_carte">Numéro de carte</label>
+                                <input type="text" id="numero_carte" name="numero_carte" class="form-control" placeholder="•••• •••• •••• ••••">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="expiration">Date d'expiration</label>
+                                    <input type="text" id="expiration" name="expiration" class="form-control" placeholder="MM/AA">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cvv">CVV</label>
+                                    <input type="text" id="cvv" name="cvv" class="form-control" placeholder="•••">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" name="finaliser_commande" class="submit-button">Finaliser la commande</button>
+                </form>
+            </div>
+
+            <!-- Résumé de la commande -->
+            <div class="order-summary">
+                <div class="summary-box">
+                    <h2 class="summary-title">Résumé de votre commande</h2>
+
+                    <div class="product-list">
+                        <?php foreach ($produits_panier as $produit): ?>
+                            <div class="product-item">
+                                <img src="<?= htmlspecialchars($produit['image_url']) ?>" alt="<?= htmlspecialchars($produit['titre']) ?>">
+                                <div class="product-info">
+                                    <div class="product-name"><?= htmlspecialchars($produit['titre']) ?></div>
+                                    <div class="product-details">Quantité: <?= $produit['quantite'] ?></div>
+                                </div>
+                                <div class="product-price"><?= number_format($produit['sous_total'], 2, ',', ' ') ?> €</div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="summary-totals">
+                        <div class="total-row">
+                            <span class="total-label">Sous-total</span>
+                            <span class="total-value"><?= number_format($panier_total, 2, ',', ' ') ?> €</span>
+                        </div>
+                        <div class="total-row">
+                            <span class="total-label">Frais de livraison</span>
+                            <span class="total-value">Gratuit</span>
+                        </div>
+                        <div class="total-row grand-total">
+                            <span class="total-label">Total</span>
+                            <span class="total-value"><?= number_format($panier_total, 2, ',', ' ') ?> €</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+</main>
+
+<footer>
+    <div class="footer-container">
+        <div class="footer-column">
+            <h4>BANDER-SHOP</h4>
+            <ul>
+                <li><a href="#">À propos</a></li>
+                <li><a href="#">Comment ça marche</a></li>
+                <li><a href="#">Confiance et sécurité</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column">
+            <h4>Découvrir</h4>
+            <ul>
+                <li><a href="#">Applications mobiles</a></li>
+                <li><a href="#">Tableau de bord</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column">
+            <h4>Aide</h4>
+            <ul>
+                <li><a href="#">Centre d'aide</a></li>
+                <li><a href="#">Vendre</a></li>
+                <li><a href="#">Acheter</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="copyright">
+        <p>&copy; 2025 BANDER-SHOP - Tous droits réservés.</p>
+    </div>
+</footer>
+
+</body>
+</html>
